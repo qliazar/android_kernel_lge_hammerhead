@@ -1,0 +1,70 @@
+name: Kernel
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ lineage-23.2 ]
+
+env:
+  ARCH: arm
+  SUBARCH: arm
+  CROSS_COMPILE: arm-linux-gnueabi-
+  CCACHE_DIR: /home/runner/.ccache
+  CCACHE_MAXSIZE: 3G
+  CCACHE_COMPRESS: 1
+  CCACHE_COMPRESSLEVEL: 1
+  KBUILD_BUILD_USER: builder
+  KBUILD_BUILD_HOST: actions
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Cache Ccache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.run_id }}
+          restore-keys: ${{ runner.os }}-ccache-
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            bc libelf-dev ccache zip gcc-arm-linux-gnueabi g++-arm-linux-gnueabi
+
+      - name: Build
+        run: |
+          mkdir -p out
+          make O=out lineageos_hammerhead_defconfig
+
+          JOBS=$(( $(nproc --all) * 2 ))
+
+          make -j${JOBS} O=out CC="ccache arm-linux-gnueabi-gcc" zImage-dtb dtbs
+
+      - name: Package
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git anykernel
+
+          # Fix AnyKernel3 magiskboot unpack on zImage-dtb (kernel decompression error)
+          sed -i 's/magiskboot unpack -h \$BOOTIMG/magiskboot unpack -h -n \$BOOTIMG/' anykernel/tools/ak3-core.sh
+
+          cp anykernel.sh anykernel/anykernel.sh
+
+          # Hammerhead boot image has zImage and appended DTB as a single zImage-dtb payload
+          cp out/arch/arm/boot/zImage-dtb anykernel/zImage
+
+          cd anykernel
+          zip -r9 ../hammerhead-kernel-$(date +'%Y%m%d').zip * -x .git README.md *placeholder
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: hammerhead-kernel
+          path: hammerhead-kernel-*.zip
