@@ -1341,12 +1341,6 @@
 			qcom,ocmem-part-min = <0x55000>;
 		};
 
-		partition@140000 {
-			reg = <0x140000 0x40000>;
-			qcom,ocmem-part-name = "sensors";
-			qcom,ocmem-part-min = <0x40000>;
-		};
-
 	};
 
 	rpm_bus: qcom,rpm-smd {
