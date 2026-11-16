@@ -3,12 +3,12 @@ name: Kernel
 on:
   workflow_dispatch:
   push:
-    branches: [ lineage-23.2 ]
+    branches: [ ci-build ]
 
 env:
   ARCH: arm
   SUBARCH: arm
-  CROSS_COMPILE: arm-linux-gnueabi-
+  CROSS_COMPILE: /home/runner/tc/bin/arm-linux-androideabi-
   CCACHE_DIR: /home/runner/.ccache
   CCACHE_MAXSIZE: 3G
   CCACHE_COMPRESS: 1
@@ -18,7 +18,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -37,7 +37,11 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
-            bc libelf-dev ccache zip gcc-arm-linux-gnueabi g++-arm-linux-gnueabi
+            bc libelf-dev ccache zip libncurses5
+
+      - name: Setup Toolchain
+        run: |
+          git clone --depth=1 -b pie-gsi https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 /home/runner/tc
 
       - name: Build
         run: |
@@ -46,7 +50,7 @@ jobs:
 
           JOBS=$(( $(nproc --all) * 2 ))
 
-          make -j${JOBS} O=out CC="ccache arm-linux-gnueabi-gcc" zImage-dtb dtbs
+          make -j${JOBS} O=out CC="ccache /home/runner/tc/bin/arm-linux-androideabi-gcc" zImage-dtb dtbs
 
       - name: Package
         run: |
